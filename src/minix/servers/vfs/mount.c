@@ -483,12 +483,21 @@ int unmount(
   for (vp = &vnode[0]; vp < &vnode[NR_VNODES]; vp++)
 	  if (vp->v_ref_count > 0 && vp->v_dev == dev) {
 		count += vp->v_ref_count;
+    if (vp->is_locked) {
+      --count;
+    }
 		if (is_vnode_locked(vp)) locks++;
 	  }
 
   if (count > 1 || locks > 1 || tll_haspendinglock(&vmp->m_lock)) {
 	unlock_vmnt(vmp);
 	return(EBUSY);    /* can't umount a busy file system */
+  }
+  for (vp = &vnode[0]; vp < &vnode[NR_VNODES]; vp++) {
+    if (vp->is_locked) {
+      --vp->v_ref_count;
+      vp->is_locked = 0;
+    }
   }
 
   /* This FS will now disappear, so stop listing it in statistics. */

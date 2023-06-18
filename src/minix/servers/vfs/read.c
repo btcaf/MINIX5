@@ -149,6 +149,10 @@ int read_write(struct fproc *rfp, int rw_flag, struct filp *f,
 
   op = (rw_flag == READING ? CDEV_READ : CDEV_WRITE);
 
+  if (vp->is_locked && vp->locker_id != fp->fp_realuid) {
+	return EACCES;
+  }
+  
   if (S_ISFIFO(vp->v_mode)) {		/* Pipes */
 	if (rfp->fp_cum_io_partial != 0) {
 		panic("VFS: read_write: fp_cum_io_partial not clear");

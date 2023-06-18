@@ -141,6 +141,10 @@ int common_open(char path[PATH_MAX], int oflags, mode_t omode)
 
   /* Only do the normal open code if we didn't just create the file. */
   if (exist) {
+	if (vp->is_locked && vp->locker_id != fp->fp_realuid) {
+		r = EACCES;
+		goto final;
+	}
 	/* Check protections. */
 	if ((r = forbidden(fp, vp, bits)) == OK) {
 		/* Opening reg. files, directories, and special files differ */
@@ -266,6 +270,7 @@ int common_open(char path[PATH_MAX], int oflags, mode_t omode)
 	}
   }
 
+  final:
   unlock_filp(filp);
 
   /* If error, release inode. */
@@ -694,6 +699,11 @@ int fd_nr;
   close_filp(rfilp);
 
   FD_CLR(fd_nr, &rfp->fp_cloexec_set);
+  if (vp->is_locked && vp->is_fd_locked) {
+	vp->is_locked = 0;
+	--vp->v_ref_count;
+	dec_excl_nr();
+  }
 
   /* Check to see if the file is locked.  If so, release all locks. */
   if (nr_locks > 0) {

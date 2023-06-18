@@ -144,6 +144,7 @@ void init_vnodes(void)
 	vp->v_ref_count = 0;
 	vp->v_fs_count = 0;
 	vp->v_mapfs_count = 0;
+  vp->is_locked = 0;
 	tll_init(&vp->v_lock);
   }
 }

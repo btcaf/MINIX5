@@ -138,6 +138,14 @@ int do_unlink(void)
 	vp = advance(dirp, &stickycheck, fp);
 	assert(vmp2 == NULL);
 	if (vp != NULL) {
+    if (vp->is_locked && vp->locker_id != fp->fp_realuid) {
+      unlock_vnode(vp);
+      put_vnode(vp);
+      unlock_vnode(dirp);
+      unlock_vmnt(vmp);
+      put_vnode(dirp);
+      return EACCES;
+    }
 		if (vp->v_uid != fp->fp_effuid && fp->fp_effuid != SU_UID)
 			r = EPERM;
 		unlock_vnode(vp);
@@ -203,6 +211,14 @@ int do_rename(void)
 	vp = advance(old_dirp, &stickycheck, fp);
 	assert(vmp2 == NULL);
 	if (vp != NULL) {
+    if (vp->is_locked && vp->locker_id != fp->fp_realuid) {
+      unlock_vnode(vp);
+      put_vnode(vp);
+      unlock_vnode(old_dirp);
+      unlock_vmnt(oldvmp);
+      put_vnode(old_dirp);
+      return EACCES;
+    }
 		if(vp->v_uid != fp->fp_effuid && fp->fp_effuid != SU_UID)
 			r = EPERM;
 		unlock_vnode(vp);
@@ -249,6 +265,28 @@ int do_rename(void)
 
   /* Both parent directories must be on the same device. */
   if (old_dirp->v_fs_e != new_dirp->v_fs_e) r = EXDEV;
+
+  lookup_init(&stickycheck, resolve.l_path, PATH_RET_SYMLINK, &vmp2, &vp);
+	stickycheck.l_vmnt_lock = VMNT_READ;
+	stickycheck.l_vnode_lock = VNODE_READ;
+	vp = advance(new_dirp, &stickycheck, fp);
+  if (vp != NULL) {
+    if (vp->is_locked && vp->locker_id != fp->fp_realuid) {
+      unlock_vnode(vp);
+      put_vnode(vp);
+      unlock_vnode(old_dirp);
+      unlock_vmnt(oldvmp);
+      if (new_dirp_l) unlock_vnode(new_dirp_l);
+      if (newvmp) unlock_vmnt(newvmp);
+
+      put_vnode(old_dirp);
+      put_vnode(new_dirp);
+      return EACCES;
+    }
+    unlock_vnode(vp);
+    put_vnode(vp);
+  }
+  
 
   /* Parent dirs must be writable, searchable and on a writable device */
   if ((r1 = forbidden(fp, old_dirp, W_BIT|X_BIT)) != OK ||
@@ -305,6 +343,12 @@ int do_truncate(void)
   if ((vp = eat_path(&resolve, fp)) == NULL) return(err_code);
 
   /* Ask FS to truncate the file */
+  if (vp->is_locked && vp->locker_id != fp->fp_realuid) {
+    unlock_vnode(vp);
+    unlock_vmnt(vmp);
+    put_vnode(vp);
+    return EACCES;
+  }
   if ((r = forbidden(fp, vp, W_BIT)) == OK) {
 	/* If the file size does not change, do not make the actual call. This
 	 * ensures that the file times are retained when the file size remains
@@ -343,6 +387,10 @@ int do_ftruncate(void)
 	return(err_code);
 
   vp = rfilp->filp_vno;
+  if (vp->is_locked && vp->locker_id != fp->fp_realuid) {
+    unlock_filp(rfilp);
+    return EACCES;
+  }
 
   if (!(rfilp->filp_mode & W_BIT))
 	r = EBADF;

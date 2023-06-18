@@ -35,5 +35,6 @@
 #include "type.h"
 #include "vmnt.h"
 #include "fproc.h"
+void dec_excl_nr();
 
 #endif
